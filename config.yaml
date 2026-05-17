@@ -1,0 +1,5 @@
+agents:
+  "echo agent":
+    script: src\agent_protocols\acp\agents\echo_agent.py
+  agent:
+    script: src\agent_protocols\acp\agents\agent.py
