@@ -137,9 +137,11 @@ class ExampleAgent(Agent):
         logging.info("Received extension notification: %s", method)
 
 
-async def main() -> None:
+async def main() -> int:
     logging.basicConfig(level=logging.INFO)
     await run_agent(ExampleAgent())
+
+    return 0
 
 
 if __name__ == "__main__":

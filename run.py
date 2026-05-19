@@ -43,6 +43,8 @@ async def main(agent_script: os.PathLike) -> None:
         session = await conn.new_session(cwd=os.getcwd(), mcp_servers=[])
         await interactive_loop(conn, session.session_id)
 
+    return proc.returncode or 0
+
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main("src/agent_protocols/acp/agents/echo_agent.py")))
