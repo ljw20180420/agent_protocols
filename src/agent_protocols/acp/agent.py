@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from typing import Any
 
 from acp import (
@@ -142,4 +143,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

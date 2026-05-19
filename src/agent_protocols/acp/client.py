@@ -1,87 +1,135 @@
-import asyncio
-import os
-import sys
-from contextlib import AsyncExitStack
 from typing import Any
-from uuid import uuid4
 
-import yaml
-from acp import PROTOCOL_VERSION, spawn_agent_process, text_block
-from acp.client.connection import ClientSideConnection
-from acp.interfaces import Client
-from acp.schema import NewSessionResponse
+from acp import (
+    Client,
+    RequestError,
+)
+from acp.schema import (
+    AgentMessageChunk,
+    AgentPlanUpdate,
+    AgentThoughtChunk,
+    AudioContentBlock,
+    AvailableCommandsUpdate,
+    ConfigOptionUpdate,
+    CreateTerminalResponse,
+    CurrentModeUpdate,
+    EmbeddedResourceContentBlock,
+    EnvVariable,
+    ImageContentBlock,
+    KillTerminalResponse,
+    PermissionOption,
+    ReadTextFileResponse,
+    ReleaseTerminalResponse,
+    RequestPermissionResponse,
+    ResourceContentBlock,
+    SessionInfoUpdate,
+    TerminalOutputResponse,
+    TextContentBlock,
+    ToolCallProgress,
+    ToolCallStart,
+    ToolCallUpdate,
+    UsageUpdate,
+    UserMessageChunk,
+    WaitForTerminalExitResponse,
+    WriteTextFileResponse,
+)
 
 
-class SimpleClient(Client):
-    def __init__(self, config_file: os.PathLike) -> None:
-        with open(config_file, "r") as fd:
-            self.config = yaml.safe_load(fd)
-        self.agent_name = None
-        self.agents = {}
+class ExampleClient(Client):
+    async def request_permission(
+        self,
+        options: list[PermissionOption],
+        session_id: str,
+        tool_call: ToolCallUpdate,
+        **kwargs: Any,
+    ) -> RequestPermissionResponse:
+        raise RequestError.method_not_found("session/request_permission")
 
-    async def request_permission(self, options, session_id, tool_call, **kwargs: Any):
-        return {"outcome": {"outcome": "cancelled"}}
+    async def write_text_file(
+        self, content: str, path: str, session_id: str, **kwargs: Any
+    ) -> WriteTextFileResponse | None:
+        raise RequestError.method_not_found("fs/write_text_file")
 
-    async def session_update(self, session_id, update, **kwargs):
-        print("update:", session_id, update)
+    async def read_text_file(
+        self,
+        path: str,
+        session_id: str,
+        limit: int | None = None,
+        line: int | None = None,
+        **kwargs: Any,
+    ) -> ReadTextFileResponse:
+        raise RequestError.method_not_found("fs/read_text_file")
 
-    async def initialize_and_new_session(
-        self, conn: ClientSideConnection
-    ) -> NewSessionResponse:
-        await conn.initialize(protocol_version=PROTOCOL_VERSION)
-        session = await conn.new_session(cwd=os.getcwd(), mcp_servers=[])
-        return session
+    async def create_terminal(
+        self,
+        command: str,
+        session_id: str,
+        args: list[str] | None = None,
+        cwd: str | None = None,
+        env: list[EnvVariable] | None = None,
+        output_byte_limit: int | None = None,
+        **kwargs: Any,
+    ) -> CreateTerminalResponse:
+        raise RequestError.method_not_found("terminal/create")
 
-    async def select_agent(self) -> None:
-        idx = await asyncio.to_thread(
-            input,
-            "".join(
-                [
-                    f"{i}: {agent_name}\n"
-                    for i, agent_name in enumerate(self.agents.keys())
-                ]
-            ),
-        )
-        while self.agent_name is None:
-            try:
-                self.agent_name = list(self.agents.keys())[int(idx)]
-            except Exception as e:
-                print(e)
+    async def terminal_output(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> TerminalOutputResponse:
+        raise RequestError.method_not_found("terminal/output")
 
-    async def main(self) -> None:
-        async with AsyncExitStack() as stack:
-            conn_procs = [
-                await stack.enter_async_context(
-                    spawn_agent_process(
-                        self,
-                        sys.executable,
-                        agent_meta["script"],
-                    )
-                )
-                for agent_name, agent_meta in self.config["agents"].items()
-            ]
-            sessions = await asyncio.gather(
-                *[self.initialize_and_new_session(conn) for conn, proc in conn_procs]
-            )
-            for agent_name, (conn, proc), session in zip(
-                self.config["agents"].keys(), conn_procs, sessions
-            ):
-                self.agents[agent_name] = {
-                    "connection": conn,
-                    "process": proc,
-                    "session": session,
-                }
+    async def release_terminal(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> ReleaseTerminalResponse | None:
+        raise RequestError.method_not_found("terminal/release")
 
-            while True:
-                if self.agent_name is None:
-                    await self.select_agent()
-                try:
-                    prompt = await asyncio.to_thread(input, f"{self.agent_name}: ")
-                except EOFError:
-                    self.agent_name = None
-                    continue
-                await self.agents[self.agent_name]["connection"].prompt(
-                    session_id=session.session_id,
-                    prompt=[text_block(prompt)],
-                    message_id=str(uuid4()),
-                )
+    async def wait_for_terminal_exit(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> WaitForTerminalExitResponse:
+        raise RequestError.method_not_found("terminal/wait_for_exit")
+
+    async def kill_terminal(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> KillTerminalResponse | None:
+        raise RequestError.method_not_found("terminal/kill")
+
+    async def session_update(
+        self,
+        session_id: str,
+        update: UserMessageChunk
+        | AgentMessageChunk
+        | AgentThoughtChunk
+        | ToolCallStart
+        | ToolCallProgress
+        | AgentPlanUpdate
+        | AvailableCommandsUpdate
+        | CurrentModeUpdate
+        | ConfigOptionUpdate
+        | SessionInfoUpdate
+        | UsageUpdate,
+        **kwargs: Any,
+    ) -> None:
+        if not isinstance(update, AgentMessageChunk):
+            return
+
+        content = update.content
+        text: str
+        if isinstance(content, TextContentBlock):
+            text = content.text
+        elif isinstance(content, ImageContentBlock):
+            text = "<image>"
+        elif isinstance(content, AudioContentBlock):
+            text = "<audio>"
+        elif isinstance(content, ResourceContentBlock):
+            text = content.uri or "<resource>"
+        elif isinstance(content, EmbeddedResourceContentBlock):
+            text = "<resource>"
+        else:
+            text = "<content>"
+
+        print(f"| Agent: {text}")
+
+    async def ext_method(self, method: str, params: dict) -> dict:
+        raise RequestError.method_not_found(method)
+
+    async def ext_notification(self, method: str, params: dict) -> None:
+        raise RequestError.method_not_found(method)
