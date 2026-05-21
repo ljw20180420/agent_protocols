@@ -1,9 +1,11 @@
+import sys
 from typing import Any
 
 from acp import (
     Client,
     RequestError,
 )
+from acp.core import ClientSideConnection
 from acp.schema import (
     AgentMessageChunk,
     AgentPlanUpdate,
@@ -36,6 +38,9 @@ from acp.schema import (
 
 
 class ExampleClient(Client):
+    def on_connect(self, conn: ClientSideConnection) -> None:
+        self._conn = conn
+
     async def request_permission(
         self,
         options: list[PermissionOption],
@@ -126,7 +131,7 @@ class ExampleClient(Client):
         else:
             text = "<content>"
 
-        print(f"| Agent: {text}")
+        sys.stdout.write(text)
 
     async def ext_method(self, method: str, params: dict) -> dict:
         raise RequestError.method_not_found(method)

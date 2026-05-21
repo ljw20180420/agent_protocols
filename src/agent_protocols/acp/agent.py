@@ -16,6 +16,7 @@ from acp import (
     text_block,
     update_agent_message,
 )
+from acp.core import AgentSideConnection
 from acp.interfaces import Client
 from acp.schema import (
     AgentCapabilities,
@@ -34,13 +35,11 @@ from acp.schema import (
 
 
 class ExampleAgent(Agent):
-    _conn: Client
-
     def __init__(self) -> None:
         self._next_session_id = 0
         self._sessions: set[str] = set()
 
-    def on_connect(self, conn: Client) -> None:
+    def on_connect(self, conn: AgentSideConnection) -> None:
         self._conn = conn
 
     async def _send_agent_message(self, session_id: str, content: Any) -> None:
